@@ -56,7 +56,9 @@ public class TemporaryFileDownloadResource extends StreamResource {
                 new DownloadStream(getStreamSource().getStream(), contentType, filename);
         stream.setParameter("Content-Disposition", "attachment;filename=" + filename);
         // This magic incantation should prevent anyone from caching the data
-        stream.setParameter("Cache-Control", "private,no-cache,no-store");
+        //stream.setParameter("Cache-Control", "private,no-cache,no-store");
+        // Fix to make it work with IE7 / IE8
+        stream.setParameter("Cache-Control", "max-age=0, must-revalidate");
         // In theory <=0 disables caching. In practice Chrome, Safari (and, apparently, IE) all
         // ignore <=0. Set to 1s
         stream.setCacheTime(1000);
