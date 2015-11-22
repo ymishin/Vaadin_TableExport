@@ -105,6 +105,16 @@ public class ExcelExport extends TableExport {
     protected Map<Object, String> propertyExcelFormatMap = new HashMap<Object, String>();
 
     /**
+     * Add column with row numbers ?
+     */
+    protected boolean addRowNoColumn = false;
+
+    /**
+     * Name of the column with row numbers.
+     */
+    protected static String rowNoColumnId = "#"; 
+
+    /**
      * At minimum, we need a Table to export. Everything else has default settings.
      * 
      * @param table
@@ -234,6 +244,33 @@ public class ExcelExport extends TableExport {
         while (iterator.hasNext()) {
             final Object propId = iterator.next();
             if (getTable().isColumnCollapsed(propId)) {
+                iterator.remove();
+            }
+        }
+    }
+
+    /*
+     * Add column indicating row number. Only for non-hierarchical data.
+     * This should be called before convertTable() is called.
+     */
+    public void includeRowNoColumn() {
+        if (isHierarchical()) 
+            return;
+        getPropIds().add(0, rowNoColumnId);
+        addRowNoColumn = true;
+    }
+
+    /*
+     * Exclude column with specific id. Only for non-hierarchical data.
+     * This should be called before convertTable() is called.
+     */
+    public void excludeColumn(String columnId) {
+        if (isHierarchical()) 
+            return;
+        final Iterator<Object> iterator = getPropIds().iterator();
+        while (iterator.hasNext()) {
+            final Object propId = iterator.next();
+            if (propId.toString().equals(columnId)) {
                 iterator.remove();
             }
         }
@@ -465,8 +502,15 @@ public class ExcelExport extends TableExport {
         final Collection<?> itemIds = getTable().getContainerDataSource().getItemIds();
         int localRow = row;
         int count = 0;
+        int rowNo = 1;
         for (final Object itemId : itemIds) {
-            addDataRow(sheetToAddTo, itemId, localRow);
+            if (addRowNoColumn) {
+                addDataRowWithNo(sheetToAddTo, itemId, localRow, rowNo);
+                rowNo++;
+            }
+            else {
+                addDataRow(sheetToAddTo, itemId, localRow);
+            }
             count = 1;
             if (count > 1) {
                 sheet.groupRow(localRow + 1, (localRow + count) - 1);
@@ -515,6 +559,9 @@ public class ExcelExport extends TableExport {
      *            the row
      */
     protected void addDataRow(final Sheet sheetToAddTo, final Object rootItemId, final int row) {
+        addDataRowWithNo(sheetToAddTo, rootItemId, row, -1);
+    }
+    protected void addDataRowWithNo(final Sheet sheetToAddTo, final Object rootItemId, final int row, final int rowNo) {    
         final Row sheetRow = sheetToAddTo.createRow(row);
         Property prop;
         Object propId;
@@ -522,7 +569,14 @@ public class ExcelExport extends TableExport {
         Cell sheetCell;
         for (int col = 0; col < getPropIds().size(); col++) {
             propId = getPropIds().get(col);
-            prop = getProperty(rootItemId, propId);
+            if (propId.toString().equals(rowNoColumnId))
+            {
+                prop = new ObjectProperty<Integer>(rowNo);
+            }
+            else
+            {
+                prop = getProperty(rootItemId, propId);
+            }
             if (null == prop) {
                 value = null;
             } else {
@@ -590,7 +644,9 @@ public class ExcelExport extends TableExport {
 
     private Class<?> getPropertyType(final Object propId) {
         Class<?> classType;
-        if (getTable().getColumnGenerator(propId) != null) {
+        if (propId.toString().equals(rowNoColumnId)) {
+            classType = Integer.class;
+        } else if (getTable().getColumnGenerator(propId) != null) {
             final ColumnGenerator tcg = getTable().getColumnGenerator(propId);
             if (tcg instanceof ExportableColumnGenerator) {
                 classType = ((ExportableColumnGenerator) tcg).getType();
